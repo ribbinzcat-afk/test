@@ -1,118 +1,164 @@
-const extensionName = "font-manager";
+import { extension_settings } from "../../../extensions.js";
 
-// ฟังก์ชันแปลงไฟล์เป็น Base64
-const toBase64 = file => new Promise((resolve, reject) => {
+const extensionName = "font-manager";
+const DB_KEY = "st_custom_fonts_data"; // กุญแจสำหรับเก็บข้อมูลใน Browser
+
+// โหลด localForage (Database ของ Browser)
+// หมายเหตุ: SillyTavern มักจะมี localforage เป็น global variable อยู่แล้ว
+const db = window.localforage; 
+
+// 1. ฟังก์ชันแปลงไฟล์เป็น Base64
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => resolve(reader.result);
     reader.onerror = error => reject(error);
 });
 
-async function processFontFiles() {
-    // 1. สร้างตัวเลือกไฟล์
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = ".ttf,.otf,.woff,.woff2";
-    
-    // 2. เมื่อเลือกไฟล์เสร็จ
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        toastr.info("Processing font...", "Font Gen");
+// 2. ฟังก์ชันโหลดฟอนต์จาก Database มาแสดงผลจริง
+async function loadStoredFonts() {
+    try {
+        const storedFonts = await db.getItem(DB_KEY) || [];
         
-        try {
-            // แปลงไฟล์เป็นข้อความ Code
-            const base64String = await toBase64(file);
-            const fontName = file.name.replace(/\.[^/.]+$/, "").replace(/\s+/g, '');
-            
-            // สร้าง CSS Template แบบฝัง Code
-            const cssCode = `@font-face {
-    font-family: '${fontName}';
-    src: url('${base64String}');
-    font-weight: normal;
-    font-style: normal;
-}
-
-body, .mes_text {
-    font-family: '${fontName}', sans-serif !important;
-    --main-font-family: '${fontName}', sans-serif !important;
-}`;
-            
-            // แสดงผลลัพธ์
-            addResultCard(file.name, cssCode);
-            toastr.success("CSS Generated!", "Font Gen");
-
-        } catch (err) {
-            console.error(err);
-            toastr.error("Error processing file", "Font Gen");
+        // ลบ Style เก่าออกก่อนเพื่อป้องกันการซ้ำซ้อน
+        $(`#style-${extensionName}`).remove();
+        
+        if (storedFonts.length === 0) {
+            renderList([]);
+            return;
         }
-    };
 
-    input.click();
+        let cssRules = "";
+        
+        storedFonts.forEach(font => {
+            cssRules += `
+            @font-face {
+                font-family: '${font.name}';
+                src: url('${font.data}');
+                font-weight: normal;
+                font-style: normal;
+            }`;
+        });
+
+        // บังคับใช้ฟอนต์ตัวล่าสุดที่อัพโหลด
+        const lastFont = storedFonts[storedFonts.length - 1];
+        cssRules += `
+            body, .mes_text, textarea, input {
+                font-family: '${lastFont.name}', sans-serif !important;
+                --main-font-family: '${lastFont.name}', sans-serif !important;
+            }
+        `;
+
+        // ฉีด CSS เข้าไปในหน้าเว็บ (Head)
+        $('head').append(`<style id="style-${extensionName}">${cssRules}</style>`);
+        
+        console.log("[Font Manager] Loaded fonts from storage:", storedFonts.length);
+        renderList(storedFonts);
+
+    } catch (err) {
+        console.error("[Font Manager] Load Error:", err);
+    }
 }
 
-// สร้างการ์ดแสดงผล
-function addResultCard(filename, cssCode) {
-    const container = $(`#${extensionName}-results`);
-    
-    // ลบข้อความ "พร้อมใช้งาน" ออก
-    container.find('.fm-placeholder').remove();
+// 3. ฟังก์ชันบันทึกฟอนต์ใหม่
+async function saveFont(file) {
+    try {
+        const base64 = await fileToBase64(file);
+        // สร้างชื่อฟอนต์ง่ายๆ ตัดนามสกุลออก
+        const fontName = file.name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9]/g, '');
 
-    const cardId = Date.now();
-    
-    // CSS ยาวมาก เราจะไม่เอามาโชว์ในกล่อง input ตรงๆ เพื่อไม่ให้บราวเซอร์ค้าง
-    // เราจะเก็บไว้ในตัวแปร แล้วกดปุ่ม Copy เอา
-    window[`font_css_${cardId}`] = cssCode;
+        // ดึงข้อมูลเก่ามา
+        let storedFonts = await db.getItem(DB_KEY) || [];
+        
+        // เราจะเก็บแค่ฟอนต์เดียวเพื่อให้เบา (หรือถ้าอยากเก็บหลายอันก็แค่ push ต่อไป)
+        // ในที่นี้ผมขอ reset เป็นฟอนต์ใหม่เลย เพื่อไม่ให้ Database บวมเกินไป
+        storedFonts = [{
+            name: fontName,
+            data: base64,
+            fileName: file.name
+        }];
 
-    const html = `
-    <div class="fm-item">
-        <div class="fm-item-header">
-            <i class="fa-solid fa-file-code"></i> <strong>${filename}</strong>
-        </div>
-        <div class="fm-desc">Status: Ready to copy (Base64 Encoded)</div>
-        <div class="fm-actions">
-            <button class="menu_button" onclick="navigator.clipboard.writeText(window['font_css_${cardId}']); toastr.success('Full CSS Copied!');">
-                <i class="fa-solid fa-copy"></i> Copy CSS Code
-            </button>
-            <button class="menu_button delete-btn" onclick="$(this).closest('.fm-item').remove();">
-                <i class="fa-solid fa-trash"></i>
-            </button>
-        </div>
-    </div>`;
+        await db.setItem(DB_KEY, storedFonts);
+        
+        toastr.success(`Font "${fontName}" Saved to Browser Storage!`, "Font Manager");
+        loadStoredFonts(); // รีเฟรชทันที
 
-    container.prepend(html);
+    } catch (err) {
+        console.error(err);
+        toastr.error("Failed to save font", "Font Manager");
+    }
 }
 
-// เริ่มต้น UI
+// 4. ฟังก์ชันลบฟอนต์
+async function clearFonts() {
+    await db.setItem(DB_KEY, []);
+    $(`#style-${extensionName}`).remove();
+    loadStoredFonts();
+    toastr.info("Fonts cleared", "Font Manager");
+}
+
+function renderList(fonts) {
+    const list = $(`#${extensionName}-list`);
+    list.empty();
+
+    if (fonts.length === 0) {
+        list.html('<div class="fm-empty">No font currently active.</div>');
+        return;
+    }
+
+    fonts.forEach(font => {
+        list.append(`
+            <div class="fm-item">
+                <i class="fa-solid fa-font"></i> 
+                <span>Active: <strong>${font.name}</strong></span>
+            </div>
+        `);
+    });
+}
+
+// GUI Setup
 jQuery(async () => {
+    // โหลดฟอนต์ทันทีที่เปิดเว็บขึ้นมา
+    await loadStoredFonts();
+
+    // สร้าง UI
     const uiHtml = `
     <div id="${extensionName}-settings">
         <div class="inline-drawer">
             <div class="inline-drawer-toggle inline-drawer-header">
-                <b>Local Font Generator</b>
+                <b>LocalStorage Font Loader</b>
                 <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
             </div>
             <div class="inline-drawer-content">
                 <div class="fm-controls">
-                    <p class="fm-intro">
-                        Select a font file from your PC. This tool will convert it into a CSS code that you can pasting directly into SillyTavern.
-
-                        <small style="color:orange;">(No server upload required)</small>
-                    </p>
-                    <button id="fm-select-btn" class="menu_button">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i> Select Font & Generate CSS
-                    </button>
+                    <p class="fm-desc">Stores font in your browser cache. Does not affect Custom CSS settings.</p>
+                    <div class="fm-btn-group">
+                        <button id="fm-btn-add" class="menu_button">
+                            <i class="fa-solid fa-upload"></i> Set Font
+                        </button>
+                        <button id="fm-btn-clear" class="menu_button red">
+                            <i class="fa-solid fa-trash"></i> Reset
+                        </button>
+                    </div>
                 </div>
-                <hr>
-                <div id="${extensionName}-results" class="fm-list-wrapper">
-                    <div class="fm-placeholder">Generated fonts will appear here...</div>
-                </div>
+                <div id="${extensionName}-list" class="fm-list"></div>
             </div>
         </div>
     </div>
     `;
 
     $('#extensions_settings').append(uiHtml);
-    $('#fm-select-btn').on('click', processFontFiles);
+
+    // Event Listeners
+    $('#fm-btn-add').on('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = ".ttf,.otf,.woff,.woff2";
+        input.onchange = (e) => {
+            if (e.target.files[0]) saveFont(e.target.files[0]);
+        };
+        input.click();
+    });
+
+    $('#fm-btn-clear').on('click', clearFonts);
 });

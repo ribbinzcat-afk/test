@@ -1,50 +1,43 @@
 .fm-controls {
     text-align: center;
-    padding: 15px;
+    padding: 10px;
     background: rgba(0, 0, 0, 0.2);
-    border-radius: 10px;
-    margin-bottom: 15px;
-}
-.fm-intro {
-    font-size: 0.9em;
-    opacity: 0.8;
-    margin-bottom: 15px;
-}
-.fm-list-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.fm-item {
-    background: #2b2b2b;
-    border: 1px solid #444;
-    border-radius: 8px;
-    padding: 12px;
-}
-.fm-item-header {
-    font-size: 1.1em;
-    margin-bottom: 5px;
-    color: #8ed1fc;
-}
-.fm-desc {
-    font-size: 0.8em;
-    color: #aaa;
+    border-radius: 5px;
     margin-bottom: 10px;
 }
-.fm-actions {
+.fm-desc {
+    font-size: 0.85em;
+    opacity: 0.7;
+    margin-bottom: 10px;
+}
+.fm-btn-group {
     display: flex;
     gap: 10px;
 }
-.fm-actions button {
+.fm-btn-group button {
     flex: 1;
 }
-.delete-btn {
-    flex: 0 0 50px !important;
-    background-color: #5a2e2e !important;
+.fm-list {
+    margin-top: 10px;
 }
-.fm-placeholder {
+.fm-item {
+    background: #2b4034;
+    border: 1px solid #4caf50;
+    color: #fff;
+    padding: 10px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.fm-empty {
     text-align: center;
     color: gray;
     font-style: italic;
-    padding: 20px;
+}
+.menu_button.red {
+    background-color: #8B0000;
+}
+.menu_button.red:hover {
+    background-color: #a50000;
 }

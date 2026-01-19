@@ -1,9 +1,9 @@
 {
     "name": "font-manager",
-    "display_name": "Web Font Generator (No-Server)",
-    "description": "Convert local font files into CSS code directly without server upload.",
+    "display_name": "Local Storage Font",
+    "description": "Store fonts in browser memory. No server upload, no laggy CSS.",
     "author": "AI Assistant",
-    "version": "2.0.0",
+    "version": "4.0.0",
     "loading_order": 100,
     "js": "index.js",
     "css": "style.css"
