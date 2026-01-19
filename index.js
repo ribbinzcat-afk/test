@@ -2,9 +2,8 @@ import { extension_settings } from "../../../extensions.js";
 
 const extensionName = "font-manager";
 const apiBase = "/api/plugins/font-manager";
-
-// *** แก้ไข PATH ตรงนี้ให้ชี้ไปที่ third-party ***
-const webFontPath = "/scripts/extensions/third-party/font-manager/fonts"; 
+// Path นี้ต้องถูกต้องเช็คให้ชัวร์ว่าอยู่ใน third-party
+const webFontPath = "/scripts/extensions/third-party/font-manager/fonts";
 
 let loadedFonts = [];
 
@@ -14,8 +13,6 @@ async function refreshFontList() {
         if (response.ok) {
             loadedFonts = await response.json();
             renderFontUI();
-        } else {
-            console.error("Font Manager list error:", response.statusText);
         }
     } catch (err) {
         console.error("Font Manager Error:", err);
@@ -31,31 +28,32 @@ function handleUpload() {
         const file = e.target.files[0];
         if (!file) return;
 
-        const formData = new FormData();
-        formData.append('file', file);
-
         toastr.info("Uploading...", "Font Manager");
 
         try {
-            const res = await fetch(`${apiBase}/upload`, {
-                method: 'POST',
-                body: formData
-            });
+            // Encode ชื่อไฟล์เพื่อส่งไปกับ URL
+            const safeName = encodeURIComponent(file.name);
             
-            // อ่าน Error message จาก json ถ้ามี
-            const data = await res.json();
+            // ส่งไฟล์แบบ Binary Direct (ไม่ต้องใช้ FormData)
+            const res = await fetch(`${apiBase}/upload?filename=${safeName}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/octet-stream' // บอกว่าเป็นไฟล์ดิบ
+                },
+                body: file
+            });
 
             if (res.ok) {
                 toastr.success("Upload Complete!", "Font Manager");
                 refreshFontList();
             } else {
-                // แสดง Error ที่ Server ส่งกลับมา
-                toastr.error(`Upload Failed: ${data.error || res.statusText}`, "Font Manager");
-                console.error("Upload failed detail:", data);
+                const errText = await res.text();
+                toastr.error("Upload Failed: " + res.status, "Font Manager");
+                console.error("Upload Error Detail:", errText);
             }
         } catch (err) {
             console.error(err);
-            toastr.error("Connection Error (Check Console)", "Font Manager");
+            toastr.error("Network Error", "Font Manager");
         }
     };
     input.click();
@@ -71,14 +69,14 @@ function renderFontUI() {
     }
 
     loadedFonts.forEach(fontFile => {
-        const fontName = fontFile.replace(/\.[^/.]+$/, ""); 
+        const fontName = fontFile.replace(/\.[^/.]+$/, "");
         const fullUrl = `${webFontPath}/${fontFile}`;
         
         const cssCode = `@font-face {
     font-family: '${fontName}';
     src: url('${fullUrl}');
 }
-body {
+body, .mes_text {
     font-family: '${fontName}', sans-serif !important;
     --main-font-family: '${fontName}', sans-serif !important;
 }`;
@@ -86,7 +84,6 @@ body {
         const itemHtml = `
             <div class="fm-item">
                 <div class="fm-item-header">
-                    <span class="file-icon"><i class="fa-solid fa-font"></i></span>
                     <strong>${fontFile}</strong>
                 </div>
                 <div class="fm-preview">
@@ -94,7 +91,7 @@ body {
                 </div>
                 <div class="fm-actions">
                     <button class="menu_button sm" onclick="navigator.clipboard.writeText(\`${cssCode.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`); toastr.success('CSS Copied');">
-                        <i class="fa-solid fa-copy"></i> Copy CSS
+                        Copy CSS
                     </button>
                 </div>
             </div>
@@ -113,14 +110,11 @@ jQuery(async () => {
             </div>
             <div class="inline-drawer-content">
                 <div class="fm-controls">
-                    <p class="fm-desc">Upload fonts and paste CSS to <b>User Settings > UI > Custom CSS</b>.</p>
                     <button id="fm-upload-btn" class="menu_button">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> Upload New Font
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Upload Font (Direct Stream)
                     </button>
                 </div>
-                <div id="${extensionName}-list" class="fm-list-wrapper">
-                    <div class="fm-loading">Loading fonts...</div>
-                </div>
+                <div id="${extensionName}-list" class="fm-list-wrapper"></div>
             </div>
         </div>
     </div>
