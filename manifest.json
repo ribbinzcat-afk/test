@@ -1,8 +1,10 @@
 {
     "name": "Custom Font Uploader",
     "display_name": "Custom Font Uploader",
-    "version": "1.0.0",
-    "description": "อัพโหลดฟอนต์ส่วนตัวเพื่อใช้ใน Custom CSS",
-    "author": "YourName",
-    "js": ["index.js"]
+    "version": "1.1.0",
+    "description": "Upload custom fonts for CSS use",
+    "author": "Apricity ✨",
+    "js": ["index.js"],
+    "css": ["style.css"],
+    "html": ["settings.html"]
 }
