@@ -3,7 +3,7 @@ import { extension_settings } from "../../../extensions.js";
 const extensionName = "font-manager";
 const apiBase = "/api/plugins/font-manager";
 // Path ที่ Browser เข้าถึงไฟล์ได้
-const webFontPath = "/scripts/extensions/font-manager/fonts"; 
+const webFontPath = "scripts/extensions/third-party/${EXTENSION_NAME}"; 
 
 let loadedFonts = [];
 
