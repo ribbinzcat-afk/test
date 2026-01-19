@@ -1,5 +1,7 @@
+import { extension_settings } from "../../../extensions.js";
+
 (function() {
-    // 1. ฟังก์ชันฉีด CSS ฟอนต์เข้า Document
+    // 1. ฟังก์ชันฉีด CSS
     function injectFonts() {
         const fonts = JSON.parse(localStorage.getItem('st_custom_fonts') || '{}');
         let css = '';
@@ -15,97 +17,42 @@
         styleTag.innerHTML = css;
     }
 
-    // 2. ฟังก์ชันหลักสำหรับแสดง UI ในหน้า Extension
-    function renderSettings() {
-        // ตรวจสอบว่ามีเมนูหรือยัง เพื่อป้องกันการสร้างซ้ำ
-        if ($('#custom-font-uploader-wrapper').length) return;
-
-        const html = `
-            <div id="custom-font-uploader-wrapper" style="padding: 10px; border: 1px solid #444; border-radius: 5px; background: rgba(0,0,0,0.2);">
-                <h4 style="margin-top:0;">📤 Upload Custom Font</h4>
-                <p style="font-size: 0.8em; color: #ccc;">ไฟล์ที่รองรับ: .ttf, .otf, .woff2</p>
-                
-                <label class="menu_button" style="cursor:pointer; display:inline-block; margin-bottom:15px;">
-                    <i class="fas fa-file-upload"></i> Select Font File
-                    <input type="file" id="font-upload-input" accept=".ttf,.otf,.woff2" style="display:none;" />
-                </label>
-
-                <hr style="border:0; border-top:1px solid #444;">
-                
-                <h4>📋 Your Fonts</h4>
-                <p style="font-size: 0.8em; color: #888;">คลิกที่ชื่อเพื่อคัดลอกไปใช้ใน Custom CSS</p>
-                <div id="font-list-display" style="max-height: 200px; overflow-y: auto;"></div>
-            </div>
-        `;
-        
-        $('#extensions_settings').append(html);
-
-        // จัดการเหตุการณ์การอัพโหลด
-        $('#font-upload-input').on('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            // ตรวจสอบขนาดไฟล์ (แนะนำไม่เกิน 4MB)
-            if (file.size > 4 * 1024 * 1024) {
-                alert("ไฟล์ใหญ่เกินไป! แนะนำให้ใช้ไฟล์ขนาดไม่เกิน 4MB เพื่อป้องกันระบบหน่วง");
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const fonts = JSON.parse(localStorage.getItem('st_custom_fonts') || '{}');
-                // คลีนชื่อไฟล์เพื่อใช้เป็นชื่อฟอนต์
-                const fontName = file.name.split('.')[0].replace(/[^a-z0-9]/gi, '_');
-                
-                fonts[fontName] = event.target.result;
-                localStorage.setItem('st_custom_fonts', JSON.stringify(fonts));
-                
-                injectFonts();
-                updateFontList();
-                alert(`ติดตั้งฟอนต์ "${fontName}" สำเร็จ!`);
-            };
-            reader.readAsDataURL(file);
-        });
-
-        updateFontList();
-    }
-
-    // 3. ฟังก์ชันอัปเดตรายการและฟีเจอร์ Copy
+    // 2. อัปเดตรายการฟอนต์ในหน้าจอ
     function updateFontList() {
         const fonts = JSON.parse(localStorage.getItem('st_custom_fonts') || '{}');
         const listContainer = $('#font-list-display');
-        listContainer.empty();
+        if (!listContainer.length) return;
 
+        listContainer.empty();
         const keys = Object.keys(fonts);
+
         if (keys.length === 0) {
-            listContainer.append('<p style="font-style:italic; color:#666;">ยังไม่มีฟอนต์ที่อัพโหลด</p>');
+            listContainer.append('<div style="text-align:center; padding:10px; opacity:0.5;">No fonts installed</div>');
             return;
         }
 
         keys.forEach(name => {
             const row = $(`
-                <div class="font-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; background:rgba(255,255,255,0.05); padding:8px; border-radius:3px;">
-                    <div class="font-name-click" style="cursor:pointer; flex-grow:1;" title="Click to copy name">
-                        <code style="color:#ffac33; font-weight:bold;">${name}</code>
-                    </div>
-                    <i class="fas fa-trash delete-font" data-name="${name}" style="color:#ff4444; cursor:pointer; padding: 0 10px;" title="ลบฟอนต์"></i>
+                <div class="font-item-row">
+                    <span class="font-name-text" title="Click to copy">${name}</span>
+                    <i class="fas fa-trash-alt delete-font-btn" data-name="${name}" style="cursor:pointer; color:#ff4444;"></i>
                 </div>
             `);
             listContainer.append(row);
         });
 
-        // ฟีเจอร์คลิกเพื่อ Copy ชื่อ
-        $('.font-name-click').on('click', function() {
-            const name = $(this).text().trim();
+        // Event: Click to Copy
+        $('.font-name-text').on('click', function() {
+            const text = $(this).text();
             navigator.clipboard.writeText(name).then(() => {
-                toastr.success(`คัดลอกชื่อ "${name}" แล้ว`); // ใช้ toastr ของ SillyTavern
+                toastr.success(`Copied: ${text}`);
             });
         });
 
-        // ฟีเจอร์ลบ
-        $('.delete-font').on('click', function() {
+        // Event: Delete
+        $('.delete-font-btn').on('click', function() {
             const name = $(this).data('name');
-            if (confirm(`คุณต้องการลบฟอนต์ ${name} ใช่หรือไม่?`)) {
+            if (confirm(`ลบฟอนต์ "${name}" ใช่หรือไม่?`)) {
                 const fonts = JSON.parse(localStorage.getItem('st_custom_fonts') || '{}');
                 delete fonts[name];
                 localStorage.setItem('st_custom_fonts', JSON.stringify(fonts));
@@ -115,15 +62,34 @@
         });
     }
 
-    // เริ่มการทำงาน
+    // 3. เริ่มทำงาน
     $(document).ready(function() {
         injectFonts();
-        // ตรวจเช็คเป็นระยะเผื่อหน้าต่าง Settings ยังไม่โหลด
-        const checkInterval = setInterval(() => {
-            if ($('#extensions_settings').length) {
-                renderSettings();
-                clearInterval(checkInterval);
+
+        // ดักจับเหตุการณ์การอัพโหลด (เนื่องจาก HTML ถูกโหลดจากไฟล์แยก)
+        $(document).on('change', '#font-upload-input', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const fonts = JSON.parse(localStorage.getItem('st_custom_fonts') || '{}');
+                const fontName = file.name.split('.')[0].replace(/[^a-z0-9]/gi, '_');
+                fonts[fontName] = event.target.result;
+                localStorage.setItem('st_custom_fonts', JSON.stringify(fonts));
+                
+                injectFonts();
+                updateFontList();
+                toastr.success(`Installed font: ${fontName}`);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // อัปเดตลิสต์เมื่อหน้าจอ Extension เปิดขึ้น
+        setInterval(() => {
+            if ($('#font-list-display').length && $('#font-list-display').is(':empty')) {
+                updateFontList();
             }
-        }, 500);
+        }, 1000);
     });
 })();
