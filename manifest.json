@@ -1,9 +1,9 @@
 {
     "name": "font-manager",
-    "display_name": "Custom Font Manager",
-    "description": "Upload custom fonts and generate CSS snippets easily.",
+    "display_name": "Web Font Generator (No-Server)",
+    "description": "Convert local font files into CSS code directly without server upload.",
     "author": "AI Assistant",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "loading_order": 100,
     "js": "index.js",
     "css": "style.css"
