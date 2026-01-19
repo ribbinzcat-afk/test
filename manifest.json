@@ -1,10 +1,10 @@
 {
-    "name": "Custom Font Uploader",
-    "display_name": "Custom Font Uploader",
-    "version": "1.1.0",
-    "description": "Upload custom fonts for CSS use",
-    "author": "Apricity ✨",
-    "js": ["index.js"],
-    "css": ["style.css"],
-    "html": ["settings.html"]
+    "name": "font-manager",
+    "display_name": "Custom Font Manager",
+    "description": "Upload custom fonts and generate CSS snippets easily.",
+    "author": "AI Assistant",
+    "version": "1.0.0",
+    "loading_order": 100,
+    "js": "index.js",
+    "css": "style.css"
 }

@@ -1,122 +1,136 @@
-(function() {
-    const STORAGE_KEY = 'st_custom_fonts';
+import { extension_settings } from "../../../extensions.js";
 
-    // 1. ฟังก์ชันฉีด CSS ฟอนต์เข้า Document
-    function injectFonts() {
-        const fonts = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-        let css = '';
-        for (const [name, data] of Object.entries(fonts)) {
-            css += `@font-face { font-family: '${name}'; src: url('${data}'); }\n`;
+const extensionName = "font-manager";
+const apiBase = "/api/plugins/font-manager";
+// Path ที่ Browser เข้าถึงไฟล์ได้
+const webFontPath = "/scripts/extensions/font-manager/fonts"; 
+
+let loadedFonts = [];
+
+// ฟังก์ชันโหลดรายการฟอนต์จาก Server
+async function refreshFontList() {
+    try {
+        const response = await fetch(`${apiBase}/list`);
+        if (response.ok) {
+            loadedFonts = await response.json();
+            renderFontUI();
         }
-        let styleTag = document.getElementById('st-custom-fonts-style');
-        if (!styleTag) {
-            styleTag = document.createElement('style');
-            styleTag.id = 'st-custom-fonts-style';
-            document.head.appendChild(styleTag);
-        }
-        styleTag.innerHTML = css;
+    } catch (err) {
+        console.error("Font Manager Error:", err);
+        toastr.error("Failed to load font list.");
     }
+}
 
-    // 2. ฟังก์ชันอัปเดตรายการชื่อฟอนต์
-    function updateFontList() {
-        const fonts = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-        const listContainer = $('#font-list-display');
-        if (!listContainer.length) return;
+// ฟังก์ชันอัพโหลดไฟล์
+function handleUpload() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = ".ttf,.otf,.woff,.woff2";
 
-        listContainer.empty();
-        const keys = Object.keys(fonts);
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-        if (keys.length === 0) {
-            listContainer.append('<p style="opacity:0.5; font-style:italic;">No fonts uploaded.</p>');
-            return;
-        }
+        const formData = new FormData();
+        formData.append('file', file);
 
-        keys.forEach(name => {
-            const row = $(`
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; background:rgba(0,0,0,0.3); padding:8px; border-radius:5px;">
-                    <code class="copy-font-name" style="cursor:pointer; color:#ffac33;" title="Click to copy">${name}</code>
-                    <i class="fas fa-trash-alt delete-font" data-name="${name}" style="color:#ff4444; cursor:pointer;"></i>
-                </div>
-            `);
-            listContainer.append(row);
-        });
+        toastr.info("Uploading...", "Font Manager");
 
-        $('.copy-font-name').on('click', function() {
-            const name = $(this).text();
-            navigator.clipboard.writeText(name);
-            toastr.success(`Copied font name: ${name}`);
-        });
+        try {
+            const res = await fetch(`${apiBase}/upload`, {
+                method: 'POST',
+                body: formData
+            });
 
-        $('.delete-font').on('click', function() {
-            const name = $(this).data('name');
-            if (confirm(`Delete font "${name}"?`)) {
-                const fonts = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-                delete fonts[name];
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(fonts));
-                injectFonts();
-                updateFontList();
+            if (res.ok) {
+                toastr.success("Upload Complete!", "Font Manager");
+                refreshFontList();
+            } else {
+                toastr.error("Upload Failed.", "Font Manager");
             }
-        });
+        } catch (err) {
+            console.error(err);
+            toastr.error("Server Error.", "Font Manager");
+        }
+    };
+    input.click();
+}
+
+// ฟังก์ชันสร้างหน้าจอรายการฟอนต์
+function renderFontUI() {
+    const container = $(`#${extensionName}-list`);
+    container.empty();
+
+    if (loadedFonts.length === 0) {
+        container.append('<div class="fm-empty">No fonts uploaded yet.</div>');
+        return;
     }
 
-    // 3. สร้าง UI ในหน้า Extensions Settings
-    function initUI() {
-        // ถ้ามีอยู่แล้วไม่ต้องสร้างซ้ำ
-        if ($('#font-uploader-container').length) return;
-
-        const container = $(`
-            <div id="font-uploader-container" style="padding:15px; border:1px solid #444; border-radius:10px; background:rgba(0,0,0,0.2); margin-top:10px;">
-                <h4 style="margin-top:0;">📤 Upload New Font</h4>
-                
-                <div style="margin-bottom:15px;">
-                    <label class="menu_button" style="display:inline-block; cursor:pointer;">
-                        <i class="fas fa-file-upload"></i> Select Font File
-                        <input type="file" id="font-upload-input" accept=".ttf,.otf,.woff2" style="display:none;" />
-                    </label>
-                </div>
-
-                <hr style="border:0; border-top:1px solid #444;">
-
-                <h4>📋 Your Fonts</h4>
-                <div id="font-list-display"></div>
-            </div>
-        `);
-
-        $('#extensions_settings').append(container);
-
-        // ดักจับการอัพโหลด
-        $(document).on('change', '#font-upload-input', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const fonts = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-                const fontName = file.name.split('.')[0].replace(/[^a-z0-9]/gi, '_');
-                fonts[fontName] = event.target.result;
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(fonts));
-                
-                injectFonts();
-                updateFontList();
-                toastr.success(`Installed: ${fontName}`);
-            };
-            reader.readAsDataURL(file);
-        });
-
-        updateFontList();
-    }
-
-    // เริ่มทำงาน
-    $(document).ready(function() {
-        injectFonts();
+    loadedFonts.forEach(fontFile => {
+        const fontName = fontFile.replace(/\.[^/.]+$/, ""); // ตัดนามสกุลออกเพื่อเป็นชื่อ Font Family
+        const fullUrl = `${webFontPath}/${fontFile}`;
         
-        // ใช้ interval เช็คจนกว่าเมนู Extensions จะโผล่ (กันพลาด)
-        const checkExist = setInterval(function() {
-            if ($('#extensions_settings').length) {
-                initUI();
-                // ไม่ต้องเคลียร์ Interval เผื่อมีการสลับเมนูไปมาแล้ว UI หาย
-                updateFontList(); 
-            }
-        }, 1000);
+        // CSS Template
+        const cssCode = `@font-face {
+    font-family: '${fontName}';
+    src: url('${fullUrl}');
+}
+body {
+    font-family: '${fontName}', sans-serif !important;
+    --main-font-family: '${fontName}', sans-serif !important;
+}`;
+
+        const itemHtml = `
+            <div class="fm-item">
+                <div class="fm-item-header">
+                    <span class="file-icon"><i class="fa-solid fa-font"></i></span>
+                    <strong>${fontFile}</strong>
+                </div>
+                <div class="fm-preview">
+                    <textarea readonly class="fm-code-box">${cssCode}</textarea>
+                </div>
+                <div class="fm-actions">
+                    <button class="menu_button sm" onclick="navigator.clipboard.writeText(\`${cssCode.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`); toastr.success('CSS Copied to clipboard');">
+                        <i class="fa-solid fa-copy"></i> Copy CSS
+                    </button>
+                </div>
+            </div>
+        `;
+        container.append(itemHtml);
     });
-})();
+}
+
+// เริ่มต้นทำงานเมื่อ SillyTavern โหลดหน้าเว็บ
+jQuery(async () => {
+    // HTML โครงสร้างหลักของ Extension
+    const uiHtml = `
+    <div id="${extensionName}-settings">
+        <div class="inline-drawer">
+            <div class="inline-drawer-toggle inline-drawer-header">
+                <b>Custom Font Manager</b>
+                <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+            </div>
+            <div class="inline-drawer-content">
+                <div class="fm-controls">
+                    <p class="fm-desc">Upload fonts (.ttf, .otf, .woff) and copy the generated CSS to <b>User Settings > UI > Custom CSS</b>.</p>
+                    <button id="fm-upload-btn" class="menu_button">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Upload New Font
+                    </button>
+                </div>
+                <div id="${extensionName}-list" class="fm-list-wrapper">
+                    <div class="fm-loading">Loading fonts...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+
+    // เพิ่ม UI เข้าไปใน Extension Panel
+    $('#extensions_settings').append(uiHtml);
+
+    // ผูกปุ่ม Upload
+    $('#fm-upload-btn').on('click', handleUpload);
+
+    // โหลดข้อมูลครั้งแรก
+    refreshFontList();
+});
