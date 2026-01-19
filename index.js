@@ -2,26 +2,26 @@ import { extension_settings } from "../../../extensions.js";
 
 const extensionName = "font-manager";
 const apiBase = "/api/plugins/font-manager";
-// Path ที่ Browser เข้าถึงไฟล์ได้
-const webFontPath = "scripts/extensions/third-party/${EXTENSION_NAME}"; 
+
+// *** แก้ไข PATH ตรงนี้ให้ชี้ไปที่ third-party ***
+const webFontPath = "/scripts/extensions/third-party/font-manager/fonts"; 
 
 let loadedFonts = [];
 
-// ฟังก์ชันโหลดรายการฟอนต์จาก Server
 async function refreshFontList() {
     try {
         const response = await fetch(`${apiBase}/list`);
         if (response.ok) {
             loadedFonts = await response.json();
             renderFontUI();
+        } else {
+            console.error("Font Manager list error:", response.statusText);
         }
     } catch (err) {
         console.error("Font Manager Error:", err);
-        toastr.error("Failed to load font list.");
     }
 }
 
-// ฟังก์ชันอัพโหลดไฟล์
 function handleUpload() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -41,22 +41,26 @@ function handleUpload() {
                 method: 'POST',
                 body: formData
             });
+            
+            // อ่าน Error message จาก json ถ้ามี
+            const data = await res.json();
 
             if (res.ok) {
                 toastr.success("Upload Complete!", "Font Manager");
                 refreshFontList();
             } else {
-                toastr.error("Upload Failed.", "Font Manager");
+                // แสดง Error ที่ Server ส่งกลับมา
+                toastr.error(`Upload Failed: ${data.error || res.statusText}`, "Font Manager");
+                console.error("Upload failed detail:", data);
             }
         } catch (err) {
             console.error(err);
-            toastr.error("Server Error.", "Font Manager");
+            toastr.error("Connection Error (Check Console)", "Font Manager");
         }
     };
     input.click();
 }
 
-// ฟังก์ชันสร้างหน้าจอรายการฟอนต์
 function renderFontUI() {
     const container = $(`#${extensionName}-list`);
     container.empty();
@@ -67,10 +71,9 @@ function renderFontUI() {
     }
 
     loadedFonts.forEach(fontFile => {
-        const fontName = fontFile.replace(/\.[^/.]+$/, ""); // ตัดนามสกุลออกเพื่อเป็นชื่อ Font Family
+        const fontName = fontFile.replace(/\.[^/.]+$/, ""); 
         const fullUrl = `${webFontPath}/${fontFile}`;
         
-        // CSS Template
         const cssCode = `@font-face {
     font-family: '${fontName}';
     src: url('${fullUrl}');
@@ -90,7 +93,7 @@ body {
                     <textarea readonly class="fm-code-box">${cssCode}</textarea>
                 </div>
                 <div class="fm-actions">
-                    <button class="menu_button sm" onclick="navigator.clipboard.writeText(\`${cssCode.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`); toastr.success('CSS Copied to clipboard');">
+                    <button class="menu_button sm" onclick="navigator.clipboard.writeText(\`${cssCode.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`); toastr.success('CSS Copied');">
                         <i class="fa-solid fa-copy"></i> Copy CSS
                     </button>
                 </div>
@@ -100,9 +103,7 @@ body {
     });
 }
 
-// เริ่มต้นทำงานเมื่อ SillyTavern โหลดหน้าเว็บ
 jQuery(async () => {
-    // HTML โครงสร้างหลักของ Extension
     const uiHtml = `
     <div id="${extensionName}-settings">
         <div class="inline-drawer">
@@ -112,7 +113,7 @@ jQuery(async () => {
             </div>
             <div class="inline-drawer-content">
                 <div class="fm-controls">
-                    <p class="fm-desc">Upload fonts (.ttf, .otf, .woff) and copy the generated CSS to <b>User Settings > UI > Custom CSS</b>.</p>
+                    <p class="fm-desc">Upload fonts and paste CSS to <b>User Settings > UI > Custom CSS</b>.</p>
                     <button id="fm-upload-btn" class="menu_button">
                         <i class="fa-solid fa-cloud-arrow-up"></i> Upload New Font
                     </button>
@@ -125,12 +126,7 @@ jQuery(async () => {
     </div>
     `;
 
-    // เพิ่ม UI เข้าไปใน Extension Panel
     $('#extensions_settings').append(uiHtml);
-
-    // ผูกปุ่ม Upload
     $('#fm-upload-btn').on('click', handleUpload);
-
-    // โหลดข้อมูลครั้งแรก
     refreshFontList();
 });
