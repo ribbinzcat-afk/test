@@ -1,0 +1,8 @@
+{
+    "name": "Custom Font Uploader",
+    "display_name": "Custom Font Uploader",
+    "version": "1.0.0",
+    "description": "อัพโหลดฟอนต์ส่วนตัวเพื่อใช้ใน Custom CSS",
+    "author": "YourName",
+    "js": ["index.js"]
+}
